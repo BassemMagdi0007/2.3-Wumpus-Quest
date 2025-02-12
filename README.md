@@ -446,8 +446,29 @@ XX G      XXXX
 XX XXXX XXXXXX
 XX     AXXXXXX
 XXXXXXXXXXXXXX
-```
 XXXXXXXXXXXXXX
 
 CURRENT POSITION: (7, 9)
+
+NEW HISTORY:
+Action: EAST, Outcome: {'position': [9, 2], 'collected-gold-at': None}
+Action: SOUTH, Outcome: {'position': [9, 3], 'collected-gold-at': [9, 3]}
+Action: SOUTH, Outcome: {'position': [9, 4], 'collected-gold-at': None}
+Action: SOUTH, Outcome: {'position': [9, 5], 'collected-gold-at': None}
+Action: SOUTH, Outcome: {'position': [9, 6], 'collected-gold-at': None}
+Action: SOUTH, Outcome: {'position': [9, 7], 'collected-gold-at': None}
+Action: WEST, Outcome: {'position': [8, 7], 'collected-gold-at': None}
+Action: WEST, Outcome: {'position': [7, 7], 'collected-gold-at': None}
+Action: WEST, Outcome: {'position': [6, 7], 'collected-gold-at': None}
+Action: WEST, Outcome: {'position': [5, 7], 'collected-gold-at': None}
+Action: WEST, Outcome: {'position': [4, 7], 'collected-gold-at': None}
+Action: WEST, Outcome: {'position': [3, 7], 'collected-gold-at': [3, 7]}
+Action: EAST, Outcome: {'position': [4, 7], 'collected-gold-at': None}
+Action: EAST, Outcome: {'position': [5, 7], 'collected-gold-at': None}
+Action: EAST, Outcome: {'position': [6, 7], 'collected-gold-at': None}
+Action: EAST, Outcome: {'position': [7, 7], 'collected-gold-at': None}
+Action: SOUTH, Outcome: {'position': [7, 8], 'collected-gold-at': None}
+Action: SOUTH, Outcome: {'position': [7, 9], 'collected-gold-at': None}
+Action: EXIT, Outcome: {'position': [7, 9], 'collected-gold-at': None}
 ERROR:client:run 6373796: Bad action {'action': 'EXIT'}
+```
