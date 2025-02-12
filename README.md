@@ -100,6 +100,8 @@ This project implements a reinforcement learning agent that navigates a grid-bas
 
 # Current Output 
 
+```python
+
 HISTORY:
 Action: {'agility': 6, 'fighting': 0}, Outcome: {'agility': 6, 'fighting': 0}
 Action: NORTH, Outcome: {'position': [7, 8]}
@@ -113,7 +115,7 @@ Action: EAST, Outcome: {'position': [7, 3]}
 Action: NORTH, Outcome: {'position': [7, 2]}
 Action: EAST, Outcome: {'position': [8, 2]}
 
-```python
+
 GAME MAP:
 XXXXXXXXXXXXXX
 XXXXXXXXXXXXXX
