@@ -204,18 +204,18 @@ def agent_function(request_data, request_info):
     history = request_data.get("history", [])
 
     # Print the history in a readable format
-    print("\nHISTORY:")
+    # print("\nHISTORY:")
     for event in history:
         action = event.get('action')
         outcome = event.get('outcome')
         print(f"Action: {action}, Outcome: {outcome}")
         
-    print('\nGAME MAP:\n', game_map)
+    # print('\nGAME MAP:\n', game_map)
 
-    # Allocate skill points if needed
+    # Allocate skill points if needed (first action)
     if free_skill_points > 0:
         skill_allocation = {"agility": free_skill_points, "fighting": 0}
-        return {"action": skill_allocation}
+        return skill_allocation  # Return JSON object for skill allocation
 
     # Extract current position and gold collected from history
     current_position = start_pos
@@ -232,40 +232,25 @@ def agent_function(request_data, request_info):
                 gold_pos = tuple(outcome['collected-gold-at'])
                 gold_collected.add(gold_pos)
 
-    print("\nCURRENT POSITION:", current_position)
+    # print("\nCURRENT POSITION:", current_position)
     print_grid(grid, current_position)  # Print the grid with the agent's position
+
+    # Check if the agent is on the stairs and has collected gold
+    if grid[current_position[1]][current_position[0]] == 'S' and gold_collected:
+        # Agent is on the stairs and has collected gold, EXIT is valid
+        return "EXIT"  # Return plain string for EXIT action
 
     # Compute the optimal policy using Policy Iteration
     policy = policy_iteration(grid, gold_locations, start_pos)
 
-    # Follow the policy and visualize the agent's movements
-    while True:
-        state = (current_position, frozenset(gold_collected))
-        action = policy.get(state, "EXIT")  # Default to EXIT if no policy found
+    # Follow the policy and choose the next action
+    state = (current_position, frozenset(gold_collected))
+    action = policy.get(state, "NORTH")  # Default to NORTH if no policy found
 
-        print(f"\nChosen action for state {state}: {action}")
+    # print(f"\nChosen action for state {state}: {action}")
 
-        # Move the agent based on the chosen action
-        next_position = move_agent(current_position, action, grid)
-        if next_position == current_position and action != "EXIT":
-            print(f"Invalid move detected: {action} from {current_position}")
-            break
+    return action  # Return plain string for the chosen action
 
-        print(f"Agent moved to: {next_position}")
-        current_position = next_position
-
-        # Update collected gold if the agent moves to a position with gold
-        if current_position in gold_locations:
-            gold_collected.add(current_position)
-
-        print_grid(grid, current_position)  # Print the grid with the agent's new position
-
-        if action == "EXIT":
-            break
-
-    print('CURRENT POSITION:', current_position)
-
-    return {"action": action}
 
 
 """Main function."""
@@ -281,6 +266,6 @@ if __name__ == '__main__':
     run(
         agent_config_file=sys.argv[1],
         agent=agent_function,
-        parallel_runs=False,
-        run_limit=1000  # Stop after 1000 runs
+        parallel_runs=True,
+        run_limit=100000000  # Stop after 1000 runs
     )
