@@ -11,13 +11,14 @@ ACTIONS = ["NORTH", "SOUTH", "EAST", "WEST", "EXIT"]
 
 # Helper functions
 
+"""Generate all possible subsets of a given iterable."""
 def powerset(iterable):
-    """Generate all possible subsets of a given iterable."""
     s = list(iterable)
     return chain.from_iterable(combinations(s, r) for r in range(len(s) + 1))
 
+
+"""Parse the map into a 2D list and extract key locations."""
 def parse_map(raw_map):
-    """Parse the map into a 2D list and extract key locations."""
     grid = [list(row) for row in raw_map.split('\n') if row.strip()]
     gold_locations = []
     start_pos = None
@@ -29,8 +30,9 @@ def parse_map(raw_map):
                 start_pos = (col_idx, row_idx)  # Store as (column, row)
     return grid, gold_locations, start_pos
 
+
+"""Return a list of all coordinates (column, row) in the grid that are walkable."""
 def get_walkable_positions(grid):
-    """Return a list of all coordinates (column, row) in the grid that are walkable."""
     walkable_positions = []
     for row_idx in range(len(grid)):
         for col_idx in range(len(grid[0])):
@@ -38,8 +40,9 @@ def get_walkable_positions(grid):
                 walkable_positions.append((col_idx, row_idx))  # Store as (column, row)
     return walkable_positions
 
+
+"""Move the agent based on the chosen action (deterministic)."""
 def move_agent(position, action, grid):
-    """Move the agent based on the chosen action (deterministic)."""
     if action == "EXIT":
         return position  # EXIT is not a movement; return current position
     
@@ -57,15 +60,17 @@ def move_agent(position, action, grid):
         return (new_col, new_row)
     return position  # Stay in place if movement is blocked
 
+
+"""Check if a position is within bounds and not a wall."""
 def is_position_walkable(position, grid):
-    """Check if a position is within bounds and not a wall."""
     col, row = position
     if 0 <= row < len(grid) and 0 <= col < len(grid[0]) and grid[row][col] != 'X':
         return True
     return False
 
+
+"""Compute the reward for a given transition."""
 def get_reward(position, action, next_position, gold_collected, gold_locations, start_pos):
-    """Compute the reward for a given transition."""
     reward = -0.01  # Small penalty for each step
 
     # Penalty for hitting a wall
@@ -82,8 +87,9 @@ def get_reward(position, action, next_position, gold_collected, gold_locations, 
 
     return reward
 
+
+"""Get all possible next positions given an action (deterministic)."""
 def get_possible_next_positions(position, action, grid):
-    """Get all possible next positions given an action (deterministic)."""
     if action == "EXIT":
         # EXIT action only allows staying at the current position if it's the stairs
         if grid[position[1]][position[0]] == 'S':
@@ -106,8 +112,9 @@ def get_possible_next_positions(position, action, grid):
     else:
         return {position}  # Stay in current position if movement is blocked
 
+
+"""Compute the transition probability for a given action and next position (deterministic)."""
 def get_transition_prob(position, action, next_position, grid):
-    """Compute the transition probability for a given action and next position (deterministic)."""
     if action == "EXIT":
         if grid[position[1]][position[0]] == 'S' and next_position == position:
             return 1.0
@@ -127,8 +134,9 @@ def get_transition_prob(position, action, next_position, grid):
     actual_next_pos = new_pos if is_position_walkable(new_pos, grid) else position
     return 1.0 if next_position == actual_next_pos else 0.0
 
+
+"""Perform Policy Iteration to compute the optimal policy."""
 def policy_iteration(grid, gold_locations, start_pos):
-    """Perform Policy Iteration to compute the optimal policy."""
     walkable_positions = get_walkable_positions(grid)
     states = [(pos, frozenset(gold_collected)) for pos in walkable_positions for gold_collected in powerset(gold_locations)]
     
@@ -183,8 +191,20 @@ def policy_iteration(grid, gold_locations, start_pos):
 
     return policy
 
+
+"""Determine if the agent successfully crosses the bridge."""
+def cross_bridge(agility_skill):
+    dice_rolls = [random.randint(1, 6) for _ in range(agility_skill)]
+    dice_rolls.sort(reverse=True)
+    score = sum(dice_rolls[:3])
+    print(f"Dice Rolls: {dice_rolls}, Score: {score}")
+    if score >= 12:
+        print("Agent successfully crosses the bridge.")
+    return score >= 12
+
+
+"""Print the grid with the agent's position."""
 def print_grid(grid, agent_position):
-    """Print the grid with the agent's position."""
     grid_copy = [row[:] for row in grid]
     col, row = agent_position
     grid_copy[row][col] = 'A'  # Mark the agent's position with 'A'
@@ -192,9 +212,9 @@ def print_grid(grid, agent_position):
         print(''.join(row))
     print()
 
+
 """Agent function."""
 def agent_function(request_data, request_info):
-    """Main decision-making function for the agent."""
     print('_________________________________________________________')
 
     # Parse game state
@@ -204,13 +224,10 @@ def agent_function(request_data, request_info):
     history = request_data.get("history", [])
 
     # Print the history in a readable format
-    # print("\nHISTORY:")
     for event in history:
         action = event.get('action')
         outcome = event.get('outcome')
         print(f"Action: {action}, Outcome: {outcome}")
-        
-    # print('\nGAME MAP:\n', game_map)
 
     # Allocate skill points if needed (first action)
     if free_skill_points > 0:
@@ -232,13 +249,28 @@ def agent_function(request_data, request_info):
                 gold_pos = tuple(outcome['collected-gold-at'])
                 gold_collected.add(gold_pos)
 
-    # print("\nCURRENT POSITION:", current_position)
     print_grid(grid, current_position)  # Print the grid with the agent's position
+
+    # Print the amount of collected gold
+    print(f"COLLECTE GOLD: {len(gold_collected)}")
 
     # Check if the agent is on the stairs and has collected gold
     if grid[current_position[1]][current_position[0]] == 'S' and gold_collected:
         # Agent is on the stairs and has collected gold, EXIT is valid
         return "EXIT"  # Return plain string for EXIT action
+
+    # Check if the agent is on a bridge and needs to cross it
+    if grid[current_position[1]][current_position[0]] == 'B':
+        agility_skill = request_data.get("skill-points", {}).get("agility", 0)
+        for attempt in range(10):  # Try up to 10 times
+            if cross_bridge(agility_skill):
+                print("Agent successfully crosses the bridge.")
+                break
+            else:
+                print(f"Attempt {attempt + 1}: Agent failed to cross the bridge.")
+        else:
+            print("Agent failed to cross the bridge after 10 attempts and falls into the pit.")
+            return "EXIT"  # Exit the cave if the agent fails after 10 attempts
 
     # Compute the optimal policy using Policy Iteration
     policy = policy_iteration(grid, gold_locations, start_pos)
@@ -247,10 +279,14 @@ def agent_function(request_data, request_info):
     state = (current_position, frozenset(gold_collected))
     action = policy.get(state, "NORTH")  # Default to NORTH if no policy found
 
-    # print(f"\nChosen action for state {state}: {action}")
+    # Prioritize collecting gold, even if it requires crossing a bridge
+    if action == "EXIT" and not gold_collected:
+        for gold_pos in gold_locations:
+            if gold_pos not in gold_collected:
+                action = "NORTH"  # Change action to move towards gold
+                break
 
     return action  # Return plain string for the chosen action
-
 
 
 """Main function."""
