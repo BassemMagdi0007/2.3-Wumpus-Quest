@@ -1,4 +1,4 @@
-# Assignment 2.3: Wumpus Quest
+![image](https://github.com/user-attachments/assets/522b44a7-3832-40e9-841b-707aaebb10a4)# Assignment 2.3: Wumpus Quest
 
 This project implements an AI agent for Wumpus Quest, a Markov Decision Process (MDP)-based game where the agent navigates a cave, collects gold, and returns safely while avoiding hazards such as pits, Wumpuses, and bridges. The agent must learn an optimal policy for decision-making using policy iteration, a reinforcement learning technique.
 
@@ -79,7 +79,8 @@ ACTIONS = ["NORTH", "SOUTH", "EAST", "WEST", "EXIT"]
 def powerset(iterable):
   #...
 ```
-- Generates all possible subsets of an iterable (e.g., gold locations).
+- Generates all possible subsets of collected gold (e.g., [G1, G2] → {(), (G1), (G2), (G1,G2)}).
+- Represents states in the MDP as (position, frozenset(gold_collected))
 - Used to represent all possible states of collected gold.
 
 #### **`parse_map(raw_map)`**
@@ -109,7 +110,7 @@ is_position_walkable(position, grid):
 get_reward(position, action, next_position, gold_collected, gold_locations, start_pos):
   #...
 ```
-- Computes the reward for a given transition:
+- Bellman Equation Context: Computes immediate reward R(s,a,s') for value updates:
   - Small penalty for each step (-0.01).
   - Additional penalty for hitting a wall (-0.1).
   - Reward for collecting gold (+1).
@@ -134,24 +135,39 @@ get_transition_prob(position, action, next_position, grid):
 ---
 
 ### **3. Policy Iteration**
-- **Policy Iteration**:
 ```python
 policy_iteration(grid, gold_locations, start_pos):
   #...
 ```
-  - Initializes a random policy and value function.
+  - Bellman Equation: Explicitly used in value updates during policy evaluation.
   - Alternates between **Policy Evaluation** (updating the value function) and **Policy Improvement** (updating the policy).
   - Stops when the policy stabilizes (no further changes).
 
 ---
 
-### **4. Agent Function**
-- **Agent Function**:
-  - Parses the game state (map, history, etc.).
-  - Allocates skill points if available.
-  - Computes the optimal policy using Policy Iteration.
-  - Follows the policy to move the agent and collect gold.
-  - Returns the chosen action.
+### **4. Bridge Handling**
+```python
+def cross_bridge(agility_skill):
+  #...
+```
+ - Rolls agility_skill dice, takes top 3.
+ - Success if sum ≥ 12.
+ - Called automatically when agent enters a bridge (B).
+
+---
+
+### **5. Agent Function**
+```python
+def agent_function(request_data, request_info):
+  #...
+```
+- Skill Allocation: Prioritizes agility for bridge survival.
+- State Tracking:
+    - current_position: Updated from server’s history.
+    - gold_collected: Tracked via collected-gold-at in outcomes.
+- Computes the optimal policy using Policy Iteration.
+- Follows the policy to move the agent and collect gold.
+- Returns the chosen action.
 
 ---
 
@@ -170,384 +186,13 @@ policy_iteration(grid, gold_locations, start_pos):
 
 ---
 
-## **Usage**
-1. Ensure the required dependencies are installed (`random`, `logging`, `sys`, `itertools`).
-2. Run the agent using the provided `client.run` function:
-   ```bash
-   python main.py agent_config.json
+## Self Evaluation and Design Decisions
 
+## Output Format
+The code currently works for env-1, env-2 
 
-# Current Output 
+### env-1
+<img width="291" alt="image" src="https://github.com/user-attachments/assets/646ef3bd-f433-45d6-a91d-48dd539e3e11" />
 
-```python
-
-HISTORY:
-Action: {'agility': 6, 'fighting': 0}, Outcome: {'agility': 6, 'fighting': 0}
-Action: NORTH, Outcome: {'position': [7, 8]}
-Action: NORTH, Outcome: {'position': [7, 7]}
-Action: NORTH, Outcome: {'position': [7, 6]}
-Action: NORTH, Outcome: {'position': [7, 5]}
-Action: NORTH, Outcome: {'position': [7, 4]}
-Action: NORTH, Outcome: {'position': [7, 3]}
-Action: NORTH, Outcome: {'position': [7, 2]}
-Action: EAST, Outcome: {'position': [7, 3]}
-Action: NORTH, Outcome: {'position': [7, 2]}
-Action: EAST, Outcome: {'position': [8, 2]}
-
-
-GAME MAP:
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G      XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-CURRENT POSITION: (8, 2)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX A XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G      XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((8, 2), frozenset()): EAST
-Agent moved to: (9, 2)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX  AXXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G      XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((9, 2), frozenset()): SOUTH
-Agent moved to: (9, 3)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XAXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G      XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((9, 3), frozenset({(9, 3)})): SOUTH
-Agent moved to: (9, 4)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX XAXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G      XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((9, 4), frozenset({(9, 3)})): SOUTH
-Agent moved to: (9, 5)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX XAXXXX
-XXXXXXX X XXXX
-XX G      XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((9, 5), frozenset({(9, 3)})): SOUTH
-Agent moved to: (9, 6)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX XAXXXX
-XX G      XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((9, 6), frozenset({(9, 3)})): SOUTH
-Agent moved to: (9, 7)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G     AXXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((9, 7), frozenset({(9, 3)})): WEST
-Agent moved to: (8, 7)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G    A XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((8, 7), frozenset({(9, 3)})): WEST
-Agent moved to: (7, 7)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G   A  XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((7, 7), frozenset({(9, 3)})): WEST
-Agent moved to: (6, 7)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G  A   XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((6, 7), frozenset({(9, 3)})): WEST
-Agent moved to: (5, 7)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G A    XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((5, 7), frozenset({(9, 3)})): WEST
-Agent moved to: (4, 7)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX GA     XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((4, 7), frozenset({(9, 3)})): WEST
-Agent moved to: (3, 7)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX A      XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((3, 7), frozenset({(3, 7), (9, 3)})): EAST
-Agent moved to: (4, 7)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX GA     XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((4, 7), frozenset({(3, 7), (9, 3)})): EAST
-Agent moved to: (5, 7)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G A    XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((5, 7), frozenset({(3, 7), (9, 3)})): EAST
-Agent moved to: (6, 7)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G  A   XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((6, 7), frozenset({(3, 7), (9, 3)})): EAST
-Agent moved to: (7, 7)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G   A  XXXX
-XX XXXX XXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((7, 7), frozenset({(3, 7), (9, 3)})): SOUTH
-Agent moved to: (7, 8)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G      XXXX
-XX XXXXAXXXXXX
-XX     SXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((7, 8), frozenset({(3, 7), (9, 3)})): SOUTH
-Agent moved to: (7, 9)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G      XXXX
-XX XXXX XXXXXX
-XX     AXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-
-Chosen action for state ((7, 9), frozenset({(3, 7), (9, 3)})): EXIT
-Agent moved to: (7, 9)
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXX   XXXX
-XXXXXXX XGXXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XXXXXXX X XXXX
-XX G      XXXX
-XX XXXX XXXXXX
-XX     AXXXXXX
-XXXXXXXXXXXXXX
-XXXXXXXXXXXXXX
-
-CURRENT POSITION: (7, 9)
-
-NEW HISTORY:
-Action: EAST, Outcome: {'position': [9, 2], 'collected-gold-at': None}
-Action: SOUTH, Outcome: {'position': [9, 3], 'collected-gold-at': [9, 3]}
-Action: SOUTH, Outcome: {'position': [9, 4], 'collected-gold-at': None}
-Action: SOUTH, Outcome: {'position': [9, 5], 'collected-gold-at': None}
-Action: SOUTH, Outcome: {'position': [9, 6], 'collected-gold-at': None}
-Action: SOUTH, Outcome: {'position': [9, 7], 'collected-gold-at': None}
-Action: WEST, Outcome: {'position': [8, 7], 'collected-gold-at': None}
-Action: WEST, Outcome: {'position': [7, 7], 'collected-gold-at': None}
-Action: WEST, Outcome: {'position': [6, 7], 'collected-gold-at': None}
-Action: WEST, Outcome: {'position': [5, 7], 'collected-gold-at': None}
-Action: WEST, Outcome: {'position': [4, 7], 'collected-gold-at': None}
-Action: WEST, Outcome: {'position': [3, 7], 'collected-gold-at': [3, 7]}
-Action: EAST, Outcome: {'position': [4, 7], 'collected-gold-at': None}
-Action: EAST, Outcome: {'position': [5, 7], 'collected-gold-at': None}
-Action: EAST, Outcome: {'position': [6, 7], 'collected-gold-at': None}
-Action: EAST, Outcome: {'position': [7, 7], 'collected-gold-at': None}
-Action: SOUTH, Outcome: {'position': [7, 8], 'collected-gold-at': None}
-Action: SOUTH, Outcome: {'position': [7, 9], 'collected-gold-at': None}
-Action: EXIT, Outcome: {'position': [7, 9], 'collected-gold-at': None}
-ERROR:client:run 6373796: Bad action {'action': 'EXIT'}
-```
+### env-2
+![image](https://github.com/user-attachments/assets/3d80b21e-c969-4272-986a-07ca24a077fc)
