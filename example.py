@@ -1,16 +1,14 @@
 import random
 import logging
-import sys
 from itertools import chain, combinations
-from client import run  # Assuming this is provided by the server protocol
 
 # Constants
 GAMMA = 0.95  # Discount factor
 EPSILON = 1e-6  # Convergence threshold
 ACTIONS = ["NORTH", "SOUTH", "EAST", "WEST", "EXIT"]
 
-# Helper functions
 
+# Helper functions
 """Generate all possible subsets of a given iterable."""
 def powerset(iterable):
     s = list(iterable)
@@ -39,26 +37,6 @@ def get_walkable_positions(grid):
             if grid[row_idx][col_idx] != 'X':  # Walkable if not a wall
                 walkable_positions.append((col_idx, row_idx))  # Store as (column, row)
     return walkable_positions
-
-
-"""Move the agent based on the chosen action (deterministic)."""
-def move_agent(position, action, grid):
-    if action == "EXIT":
-        return position  # EXIT is not a movement; return current position
-    
-    col, row = position  # Server uses (column, row)
-    directions = {
-        "NORTH": (0, -1),
-        "SOUTH": (0, 1),
-        "EAST": (1, 0),
-        "WEST": (-1, 0)
-    }
-    dc, dr = directions[action]
-
-    new_col, new_row = col + dc, row + dr
-    if is_position_walkable((new_col, new_row), grid):  # Use (column, row)
-        return (new_col, new_row)
-    return position  # Stay in place if movement is blocked
 
 
 """Check if a position is within bounds and not a wall."""
@@ -262,7 +240,7 @@ def agent_function(request_data, request_info):
     # Check if the agent is on a bridge and needs to cross it
     if grid[current_position[1]][current_position[0]] == 'B':
         agility_skill = request_data.get("skill-points", {}).get("agility", 0)
-        for attempt in range(10):  # Try up to 10 times
+        for attempt in range(agility_skill): 
             if cross_bridge(agility_skill):
                 print("Agent successfully crosses the bridge.")
                 break
@@ -300,8 +278,8 @@ if __name__ == '__main__':
 
     # Run the agent
     run(
-        agent_config_file=sys.argv[1],
+        "agent-configs/ws2425-quest-2.json",
         agent=agent_function,
         parallel_runs=True,
-        run_limit=100000000  # Stop after 1000 runs
+        run_limit=100000000  # Stop after 100000000 runs
     )
