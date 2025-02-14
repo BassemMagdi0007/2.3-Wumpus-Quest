@@ -192,7 +192,8 @@ def agent_function(request_data, request_info):
 The code currently works for env-1, env-2 
 
 ### env-1
-<img width="291" alt="image" src="https://github.com/user-attachments/assets/646ef3bd-f433-45d6-a91d-48dd539e3e11" />
+<img width="291" alt="image" src="https://github.com/user-attachments/assets/3ca1d048-4418-43f3-90f0-78662cf7ff29" />
 
 ### env-2
-![image](https://github.com/user-attachments/assets/3d80b21e-c969-4272-986a-07ca24a077fc)
+<img width="308" alt="image" src="https://github.com/user-attachments/assets/61436460-065d-40ee-b96d-247041dee9ed" />
+
