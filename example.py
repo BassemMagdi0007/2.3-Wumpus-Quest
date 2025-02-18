@@ -1,11 +1,13 @@
 import random
 import logging
+import heapq
 from itertools import chain, combinations
 
 # Constants
-GAMMA = 0.95  # Discount factor
+GAMMA = 0.99  # Discount factor
 EPSILON = 1e-6  # Convergence threshold
 ACTIONS = ["NORTH", "SOUTH", "EAST", "WEST", "EXIT"]
+REWARD_GOLD = 10  # Increased reward for collecting gold
 
 
 # Helper functions
@@ -17,7 +19,7 @@ def powerset(iterable):
 
 """Parse the map into a 2D list and extract key locations."""
 def parse_map(raw_map):
-    grid = [list(row) for row in raw_map.split('\n') if row.strip()]
+    grid = [list(row) for row in raw_map.split('\n') if row]
     gold_locations = []
     start_pos = None
     for row_idx, line in enumerate(grid):
@@ -42,26 +44,23 @@ def get_walkable_positions(grid):
 """Check if a position is within bounds and not a wall."""
 def is_position_walkable(position, grid):
     col, row = position
-    if 0 <= row < len(grid) and 0 <= col < len(grid[0]) and grid[row][col] != 'X':
+    if 0 <= row < len(grid) and 0 <= col < len(grid[0]) and grid[row][col] != 'X' and grid[row][col] != 'P':
         return True
     return False
 
 
 """Compute the reward for a given transition."""
 def get_reward(position, action, next_position, gold_collected, gold_locations, start_pos):
-    reward = -0.01  # Small penalty for each step
+    reward = -0.001  # Reduced penalty per step
 
-    # Penalty for hitting a wall
-    if next_position == position:
-        reward -= 0.1  # Additional penalty for hitting a wall
+    if next_position == position and action != "EXIT":
+        reward -= 0.01  # Slightly higher penalty for hitting a wall
 
-    # Reward for collecting gold
     if next_position in gold_locations and next_position not in gold_collected:
-        reward += 1  # +1 for each gold collected
+        reward += REWARD_GOLD  # Higher reward for collecting gold
 
-    # Reward for exiting the cave
     if action == "EXIT" and next_position == start_pos:
-        reward += len(gold_collected)  # +1 for each gold carried out
+        reward += len(gold_collected) * 2  # Bonus for exiting with gold
 
     return reward
 
@@ -191,6 +190,42 @@ def print_grid(grid, agent_position):
     print()
 
 
+"""A* pathfinding algorithm to find the shortest path to the nearest gold."""
+def a_star_search(grid, start, goal):
+    def heuristic(a, b):
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+    open_set = []
+    heapq.heappush(open_set, (0, start))
+    came_from = {}
+    g_score = {start: 0}
+    f_score = {start: heuristic(start, goal)}
+
+    while open_set:
+        _, current = heapq.heappop(open_set)
+
+        if current == goal:
+            path = []
+            while current in came_from:
+                path.append(current)
+                current = came_from[current]
+            path.reverse()
+            return path
+
+        for action in ACTIONS[:-1]:  # Exclude "EXIT" action
+            for next_position in get_possible_next_positions(current, action, grid):
+                if not is_position_walkable(next_position, grid):
+                    continue
+                tentative_g_score = g_score[current] + 1  # Assume cost of 1 for each move
+                if next_position not in g_score or tentative_g_score < g_score[next_position]:
+                    came_from[next_position] = current
+                    g_score[next_position] = tentative_g_score
+                    f_score[next_position] = tentative_g_score + heuristic(next_position, goal)
+                    heapq.heappush(open_set, (f_score[next_position], next_position))
+
+    return []  # Return empty path if no path found
+
+
 """Agent function."""
 def agent_function(request_data, request_info):
     print('_________________________________________________________')
@@ -230,7 +265,7 @@ def agent_function(request_data, request_info):
     print_grid(grid, current_position)  # Print the grid with the agent's position
 
     # Print the amount of collected gold
-    print(f"COLLECTE GOLD: {len(gold_collected)}")
+    print(f"COLLECTED GOLD: {len(gold_collected)}")
 
     # Check if the agent is on the stairs and has collected gold
     if grid[current_position[1]][current_position[0]] == 'S' and gold_collected:
@@ -249,6 +284,23 @@ def agent_function(request_data, request_info):
         else:
             print("Agent failed to cross the bridge after 10 attempts and falls into the pit.")
             return "EXIT"  # Exit the cave if the agent fails after 10 attempts
+
+    # Find the nearest gold using A* search
+    nearest_gold = None
+    shortest_path = []
+    for gold_pos in gold_locations:
+        if gold_pos not in gold_collected:
+            path = a_star_search(grid, current_position, gold_pos)
+            if not shortest_path or (path and len(path) < len(shortest_path)):
+                shortest_path = path
+                nearest_gold = gold_pos
+
+    # Follow the shortest path to the nearest gold
+    if shortest_path:
+        next_position = shortest_path[0]
+        for action in ACTIONS[:-1]:  # Exclude "EXIT" action
+            if next_position in get_possible_next_positions(current_position, action, grid):
+                return action
 
     # Compute the optimal policy using Policy Iteration
     policy = policy_iteration(grid, gold_locations, start_pos)
@@ -278,8 +330,8 @@ if __name__ == '__main__':
 
     # Run the agent
     run(
-        "agent-configs/ws2425-quest-2.json",
+        agent_config_file=sys.argv[1],
         agent=agent_function,
         parallel_runs=True,
-        run_limit=100000000  # Stop after 100000000 runs
+        run_limit=100000000  # Stop after 1000 runs
     )
