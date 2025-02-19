@@ -3,6 +3,10 @@ import logging
 import heapq
 from itertools import chain, combinations
 
+#TODO: Allow the agent to pass the S when it reaches it and still gold remaining 
+#TODO: Agent falls into pits 
+#TODO: Agent falls into pit to cross the bridge
+
 # Constants
 GAMMA = 0.99  # Discount factor
 EPSILON = 1e-6  # Convergence threshold
@@ -170,13 +174,13 @@ def policy_iteration(grid, gold_locations, start_pos):
 
 
 """Determine if the agent successfully crosses the bridge."""
-def cross_bridge(agility_skill):
+def cross_bridge(agility_skill, bridge_position):
     dice_rolls = [random.randint(1, 6) for _ in range(agility_skill)]
     dice_rolls.sort(reverse=True)
     score = sum(dice_rolls[:3])
-    print(f"Dice Rolls: {dice_rolls}, Score: {score}")
+    # print(f"Dice Rolls: {dice_rolls}, Score: {score}")
     if score >= 12:
-        print("Agent successfully crosses the bridge.")
+        print(f"Agent successfully crosses the bridge at {bridge_position}.")
     return score >= 12
 
 
@@ -191,7 +195,7 @@ def print_grid(grid, agent_position):
 
 
 """A* pathfinding algorithm to find the shortest path to the nearest gold."""
-def a_star_search(grid, start, goal):
+def a_star_search(grid, start, goal, agility_skill):
     def heuristic(a, b):
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
@@ -216,6 +220,8 @@ def a_star_search(grid, start, goal):
             for next_position in get_possible_next_positions(current, action, grid):
                 if not is_position_walkable(next_position, grid):
                     continue
+                if grid[next_position[1]][next_position[0]] == 'B' and not cross_bridge(agility_skill, next_position):
+                    continue  # Skip this position if it's a bridge and the agent can't cross it
                 tentative_g_score = g_score[current] + 1  # Assume cost of 1 for each move
                 if next_position not in g_score or tentative_g_score < g_score[next_position]:
                     came_from[next_position] = current
@@ -276,7 +282,7 @@ def agent_function(request_data, request_info):
     if grid[current_position[1]][current_position[0]] == 'B':
         agility_skill = request_data.get("skill-points", {}).get("agility", 0)
         for attempt in range(agility_skill): 
-            if cross_bridge(agility_skill):
+            if cross_bridge(agility_skill, current_position):
                 print("Agent successfully crosses the bridge.")
                 break
             else:
@@ -288,9 +294,10 @@ def agent_function(request_data, request_info):
     # Find the nearest gold using A* search
     nearest_gold = None
     shortest_path = []
+    agility_skill = request_data.get("skill-points", {}).get("agility", 0)
     for gold_pos in gold_locations:
         if gold_pos not in gold_collected:
-            path = a_star_search(grid, current_position, gold_pos)
+            path = a_star_search(grid, current_position, gold_pos, agility_skill)
             if not shortest_path or (path and len(path) < len(shortest_path)):
                 shortest_path = path
                 nearest_gold = gold_pos
