@@ -1,17 +1,11 @@
 import random
 import logging
-import heapq
 from itertools import chain, combinations
 
-#TODO: Allow the agent to pass the S when it reaches it and still gold remaining 
-#TODO: Agent falls into pits 
-#TODO: Agent falls into pit to cross the bridge
-
 # Constants
-GAMMA = 0.99  # Discount factor
+GAMMA = 0.95  # Discount factor
 EPSILON = 1e-6  # Convergence threshold
 ACTIONS = ["NORTH", "SOUTH", "EAST", "WEST", "EXIT"]
-REWARD_GOLD = 10  # Increased reward for collecting gold
 
 
 # Helper functions
@@ -23,7 +17,7 @@ def powerset(iterable):
 
 """Parse the map into a 2D list and extract key locations."""
 def parse_map(raw_map):
-    grid = [list(row) for row in raw_map.split('\n') if row]
+    grid = [list(row) for row in raw_map.split('\n') if row.strip()]
     gold_locations = []
     start_pos = None
     for row_idx, line in enumerate(grid):
@@ -48,23 +42,26 @@ def get_walkable_positions(grid):
 """Check if a position is within bounds and not a wall."""
 def is_position_walkable(position, grid):
     col, row = position
-    if 0 <= row < len(grid) and 0 <= col < len(grid[0]) and grid[row][col] != 'X' and grid[row][col] != 'P':
+    if 0 <= row < len(grid) and 0 <= col < len(grid[0]) and grid[row][col] != 'X':
         return True
     return False
 
 
 """Compute the reward for a given transition."""
 def get_reward(position, action, next_position, gold_collected, gold_locations, start_pos):
-    reward = -0.001  # Reduced penalty per step
+    reward = -0.01  # Small penalty for each step
 
-    if next_position == position and action != "EXIT":
-        reward -= 0.01  # Slightly higher penalty for hitting a wall
+    # Penalty for hitting a wall
+    if next_position == position:
+        reward -= 0.1  # Additional penalty for hitting a wall
 
+    # Reward for collecting gold
     if next_position in gold_locations and next_position not in gold_collected:
-        reward += REWARD_GOLD  # Higher reward for collecting gold
+        reward += 1  # +1 for each gold collected
 
+    # Reward for exiting the cave
     if action == "EXIT" and next_position == start_pos:
-        reward += len(gold_collected) * 2  # Bonus for exiting with gold
+        reward += len(gold_collected)  # +1 for each gold carried out
 
     return reward
 
@@ -174,13 +171,13 @@ def policy_iteration(grid, gold_locations, start_pos):
 
 
 """Determine if the agent successfully crosses the bridge."""
-def cross_bridge(agility_skill, bridge_position):
+def cross_bridge(agility_skill):
     dice_rolls = [random.randint(1, 6) for _ in range(agility_skill)]
     dice_rolls.sort(reverse=True)
     score = sum(dice_rolls[:3])
-    # print(f"Dice Rolls: {dice_rolls}, Score: {score}")
+    print(f"Dice Rolls: {dice_rolls}, Score: {score}")
     if score >= 12:
-        print(f"Agent successfully crosses the bridge at {bridge_position}.")
+        print("Agent successfully crosses the bridge.")
     return score >= 12
 
 
@@ -194,53 +191,11 @@ def print_grid(grid, agent_position):
     print()
 
 
-"""A* pathfinding algorithm to find the shortest path to the nearest gold."""
-def a_star_search(grid, start, goal, agility_skill):
-    def heuristic(a, b):
-        return abs(a[0] - b[0]) + abs(a[1] - b[1])
-
-    open_set = []
-    heapq.heappush(open_set, (0, start))
-    came_from = {}
-    g_score = {start: 0}
-    f_score = {start: heuristic(start, goal)}
-    crossed_bridges = set()
-
-    while open_set:
-        _, current = heapq.heappop(open_set)
-
-        if current == goal:
-            path = []
-            while current in came_from:
-                path.append(current)
-                current = came_from[current]
-            path.reverse()
-            return path
-
-        for action in ACTIONS[:-1]:  # Exclude "EXIT" action
-            for next_position in get_possible_next_positions(current, action, grid):
-                if not is_position_walkable(next_position, grid):
-                    continue
-                if grid[next_position[1]][next_position[0]] == 'B':
-                    if next_position not in crossed_bridges:
-                        if cross_bridge(agility_skill, next_position):
-                            crossed_bridges.add(next_position)
-                        else:
-                            continue  # Skip this position if it's a bridge and the agent can't cross it
-                tentative_g_score = g_score[current] + 1  # Assume cost of 1 for each move
-                if next_position not in g_score or tentative_g_score < g_score[next_position]:
-                    came_from[next_position] = current
-                    g_score[next_position] = tentative_g_score
-                    f_score[next_position] = tentative_g_score + heuristic(next_position, goal)
-                    heapq.heappush(open_set, (f_score[next_position], next_position))
-
-    return []  # Return empty path if no path found
-
-
 """Agent function."""
 def agent_function(request_data, request_info):
     print('_________________________________________________________')
 
+    # print("Request Data:", request_data)
     # Parse game state
     game_map = request_data.get('map', '')
     grid, gold_locations, start_pos = parse_map(game_map)
@@ -251,7 +206,7 @@ def agent_function(request_data, request_info):
     for event in history:
         action = event.get('action')
         outcome = event.get('outcome')
-        print(f"Action: {action}, Outcome: {outcome}")
+        # print(f"Action: {action}, Outcome: {outcome}")
 
     # Allocate skill points if needed (first action)
     if free_skill_points > 0:
@@ -273,10 +228,10 @@ def agent_function(request_data, request_info):
                 gold_pos = tuple(outcome['collected-gold-at'])
                 gold_collected.add(gold_pos)
 
-    print_grid(grid, current_position)  # Print the grid with the agent's position
+    # print_grid(grid, current_position)  # Print the grid with the agent's position
 
     # Print the amount of collected gold
-    print(f"COLLECTED GOLD: {len(gold_collected)}")
+    print(f"COLLECTE GOLD: {len(gold_collected)}")
 
     # Check if the agent is on the stairs and has collected gold
     if grid[current_position[1]][current_position[0]] == 'S' and gold_collected:
@@ -287,32 +242,13 @@ def agent_function(request_data, request_info):
     if grid[current_position[1]][current_position[0]] == 'B':
         agility_skill = request_data.get("skill-points", {}).get("agility", 0)
         for attempt in range(agility_skill): 
-            if cross_bridge(agility_skill, current_position):
+            if cross_bridge(agility_skill):
                 print("Agent successfully crosses the bridge.")
                 break
             else:
                 print(f"Attempt {attempt + 1}: Agent failed to cross the bridge.")
         else:
             print("Agent failed to cross the bridge after 10 attempts and falls into the pit.")
-            return "EXIT"  # Exit the cave if the agent fails after 10 attempts
-
-    # Find the nearest gold using A* search
-    nearest_gold = None
-    shortest_path = []
-    agility_skill = request_data.get("skill-points", {}).get("agility", 0)
-    for gold_pos in gold_locations:
-        if gold_pos not in gold_collected:
-            path = a_star_search(grid, current_position, gold_pos, agility_skill)
-            if not shortest_path or (path and len(path) < len(shortest_path)):
-                shortest_path = path
-                nearest_gold = gold_pos
-
-    # Follow the shortest path to the nearest gold
-    if shortest_path:
-        next_position = shortest_path[0]
-        for action in ACTIONS[:-1]:  # Exclude "EXIT" action
-            if next_position in get_possible_next_positions(current_position, action, grid):
-                return action
 
     # Compute the optimal policy using Policy Iteration
     policy = policy_iteration(grid, gold_locations, start_pos)
