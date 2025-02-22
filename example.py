@@ -3,7 +3,7 @@ import logging
 from itertools import chain, combinations
 
 # Constants
-GAMMA = 0.95  # Discount factor
+GAMMA = 0.99  # Increased discount factor to prioritize future rewards
 EPSILON = 1e-6  # Convergence threshold
 ACTIONS = ["NORTH", "SOUTH", "EAST", "WEST", "EXIT"]
 
@@ -49,21 +49,26 @@ def is_position_walkable(position, grid):
 
 """Compute the reward for a given transition."""
 def get_reward(position, action, next_position, gold_collected, gold_locations, start_pos):
-    reward = -0.01  # Small penalty for each step
+    reward = -0.1  # Increased penalty per step to encourage shorter paths
 
     # Penalty for hitting a wall
     if next_position == position:
-        reward -= 0.1  # Additional penalty for hitting a wall
+        reward -= 0.5  # Increased penalty for hitting a wall
 
     # Reward for collecting gold
     if next_position in gold_locations and next_position not in gold_collected:
-        reward += 1  # +1 for each gold collected
+        reward += 10  # Increased reward for collecting gold
 
     # Reward for exiting the cave
     if action == "EXIT" and next_position == start_pos:
-        reward += len(gold_collected)  # +1 for each gold carried out
+        total_gold = len(gold_collected)
+        exit_reward = total_gold * 10  # Base reward per gold
+        if total_gold == len(gold_locations):
+            exit_reward += 100  # Large bonus for collecting all gold
+        reward += exit_reward
 
     return reward
+
 
 
 """Get all possible next positions given an action (deterministic)."""
@@ -115,16 +120,17 @@ def get_transition_prob(position, action, next_position, grid):
 
 """Perform Policy Iteration to compute the optimal policy."""
 def policy_iteration(grid, gold_locations, start_pos):
+    """Perform Policy Iteration with enhanced convergence settings."""
     walkable_positions = get_walkable_positions(grid)
     states = [(pos, frozenset(gold_collected)) for pos in walkable_positions for gold_collected in powerset(gold_locations)]
     
-    # Initialize policy and value function
-    policy = {state: random.choice(ACTIONS) for state in states}  # Random initial policy
-    V = {state: 0 for state in states}  # Initialize value function
+ # Initialize policy and value function
+    policy = {state: random.choice(ACTIONS) for state in states}
+    V = {state: 0 for state in states}
 
     while True:
-        # Policy Evaluation
-        while True:
+        # Policy Evaluation with more iterations
+        for _ in range(1000):  # Increased iterations for better convergence
             delta = 0
             for state in states:
                 position, gold_collected = state
@@ -136,7 +142,9 @@ def policy_iteration(grid, gold_locations, start_pos):
                     if next_position in gold_locations and next_position not in gold_collected:
                         next_gold_collected.add(next_position)
                     reward = get_reward(position, action, next_position, gold_collected, gold_locations, start_pos)
-                    total += get_transition_prob(position, action, next_position, grid) * (reward + GAMMA * V[(next_position, frozenset(next_gold_collected))])
+                    prob = get_transition_prob(position, action, next_position, grid)
+                    next_state = (next_position, frozenset(next_gold_collected))
+                    total += prob * (reward + GAMMA * V[next_state])
                 V[state] = total
                 delta = max(delta, abs(v - V[state]))
             if delta < EPSILON:
@@ -253,18 +261,25 @@ def agent_function(request_data, request_info):
     # Compute the optimal policy using Policy Iteration
     policy = policy_iteration(grid, gold_locations, start_pos)
 
-    # Follow the policy and choose the next action
+    # Override EXIT action unless all gold is collected
     state = (current_position, frozenset(gold_collected))
-    action = policy.get(state, "NORTH")  # Default to NORTH if no policy found
+    action = policy.get(state, "NORTH")
 
-    # Prioritize collecting gold, even if it requires crossing a bridge
-    if action == "EXIT" and not gold_collected:
-        for gold_pos in gold_locations:
-            if gold_pos not in gold_collected:
-                action = "NORTH"  # Change action to move towards gold
-                break
+    # Prevent exiting unless all gold is collected
+    if action == "EXIT":
+        if len(gold_collected) < len(gold_locations):
+            # Find direction towards nearest uncollected gold
+            uncollected = [g for g in gold_locations if g not in gold_collected]
+            if uncollected:
+                nearest = min(uncollected, key=lambda g: abs(g[0]-current_position[0]) + abs(g[1]-current_position[1]))
+                dx = nearest[0] - current_position[0]
+                dy = nearest[1] - current_position[1]
+                if abs(dx) > abs(dy):
+                    action = "EAST" if dx > 0 else "WEST"
+                else:
+                    action = "SOUTH" if dy > 0 else "NORTH"
 
-    return action  # Return plain string for the chosen action
+    return action
 
 
 """Main function."""
