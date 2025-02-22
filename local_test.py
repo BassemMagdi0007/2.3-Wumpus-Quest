@@ -33,7 +33,7 @@ def get_walkable_positions(grid):
     walkable_positions = []
     for row_idx in range(len(grid)):
         for col_idx in range(len(grid[0])):
-            if grid[row_idx][col_idx] != 'X':  # Walkable if not a wall
+            if grid[row_idx][col_idx] not in ['X', 'P']:  # Walkable if not a wall or pit
                 walkable_positions.append((col_idx, row_idx))  # Store as (column, row)
     return walkable_positions
 
@@ -57,9 +57,9 @@ def move_agent(position, action, grid):
     return position  # Stay in place if movement is blocked
 
 def is_position_walkable(position, grid):
-    """Check if a position is within bounds and not a wall."""
+    """Check if a position is within bounds and not a wall or pit."""
     col, row = position
-    if 0 <= row < len(grid) and 0 <= col < len(grid[0]) and grid[row][col] != 'X':
+    if 0 <= row < len(grid) and 0 <= col < len(grid[0]) and grid[row][col] not in ['X', 'P']:
         return True
     return False
 
@@ -73,7 +73,7 @@ def get_reward(position, action, next_position, gold_collected, gold_locations, 
 
     # Reward for collecting gold
     if next_position in gold_locations and next_position not in gold_collected:
-        reward += 1  # +1 for each gold collected
+        reward += 5  # Increase reward for each gold collected
 
     # Reward for exiting the cave
     if action == "EXIT" and next_position == start_pos:
@@ -137,7 +137,7 @@ def policy_iteration(grid, gold_locations, start_pos):
 
     while True:
         # Policy Evaluation
-        while True:
+        for _ in range(100):  # Increase the number of iterations
             delta = 0
             for state in states:
                 position, gold_collected = state
@@ -182,11 +182,27 @@ def policy_iteration(grid, gold_locations, start_pos):
 
     return policy
 
-def print_grid(grid, agent_position):
-    """Print the grid with the agent's position."""
+def cross_bridge(agility_skill):
+    """Determine if the agent successfully crosses the bridge."""
+    for attempt in range(15):
+        dice_rolls = [random.randint(1, 6) for _ in range(agility_skill)]
+        dice_rolls.sort(reverse=True)
+        score = sum(dice_rolls[:3])
+        print(f"Attempt {attempt + 1}: Dice Rolls: {dice_rolls}, Score: {score}")
+        if score >= 12:
+            print("Agent successfully crosses the bridge.")
+            return True
+    print("Agent failed to cross the bridge after 15 attempts and fell into the pit.")
+    return False
+
+def print_grid(grid, agent_position, gold_collected):
+    """Print the grid with the agent's position and remove collected gold."""
     grid_copy = [row[:] for row in grid]
     col, row = agent_position
     grid_copy[row][col] = 'A'  # Mark the agent's position with 'A'
+    for gold_pos in gold_collected:
+        g_col, g_row = gold_pos
+        grid_copy[g_row][g_col] = ' '  # Remove collected gold
     for row in grid_copy:
         print(''.join(row))
     print()
@@ -218,6 +234,7 @@ def agent_function(request_data, request_info):
     # Extract current position and gold collected from history
     current_position = start_pos
     gold_collected = set()
+    total_gold_collected = 0  # Initialize gold counter
 
     if history:
         for event in history:
@@ -229,9 +246,10 @@ def agent_function(request_data, request_info):
             if 'collected-gold-at' in outcome:
                 gold_pos = tuple(outcome['collected-gold-at'])
                 gold_collected.add(gold_pos)
+                total_gold_collected += 1  # Increment gold counter
 
     print("\nCURRENT POSITION:", current_position)
-    print_grid(grid, current_position)  # Print the grid with the agent's position
+    print_grid(grid, current_position, gold_collected)  # Print the grid with the agent's position
 
     # Compute the optimal policy using Policy Iteration
     policy = policy_iteration(grid, gold_locations, start_pos)
@@ -249,16 +267,25 @@ def agent_function(request_data, request_info):
             print(f"Invalid move detected: {action} from {current_position}")
             break
 
+        # Check if the agent is crossing a bridge
+        if grid[next_position[1]][next_position[0]] == 'B':
+            if not cross_bridge(request_data.get("skill-points", {}).get("agility", 0)):
+                print("Agent failed to cross the bridge and fell into the pit.")
+                break
+
         print(f"Agent moved to: {next_position}")
         current_position = next_position
 
         # Update collected gold if the agent moves to a position with gold
-        if current_position in gold_locations:
+        if current_position in gold_locations and current_position not in gold_collected:
             gold_collected.add(current_position)
+            total_gold_collected += 1  # Increment gold counter
+            print(f"Collected Gold: {total_gold_collected}")  # Print the gold counter
 
-        print_grid(grid, current_position)  # Print the grid with the agent's new position
+        print_grid(grid, current_position, gold_collected)  # Print the grid with the agent's new position
 
         if action == "EXIT":
+            print('TOTAL GOLD COLLECTED:', total_gold_collected)  # Print the total gold collected when exiting
             break
 
     print('CURRENT POSITION:', current_position)
@@ -268,29 +295,38 @@ def agent_function(request_data, request_info):
 def main():
     # Hardcoded environment map
     game_map = """
-    XXXXXXXXXXXXXX
-    XXXXXXXXXXXXXX
-    XXXXXXX   XXXX
-    XXXXXXX X XXXX
-    XXXXXXX X XXXX
-    XXXXXXX X XXXX
-    XXXXXXX X XXXX
-    XX G      XXXX
-    XX XXXX XXXXXX
-    XXG    SXXXXXX
-    XXXXXXXXXXXXXX
-    XXXXXXXXXXXXXX
+        XXXXXXXXXXXXXX
+        XXXXX   XXXXXX
+        XXX   B   GPXX
+        XXX X X XX XXX
+        XXX XXXXXX XXX
+        XXP XXXXXX XXX
+        XXP XXXXXX XXX
+        XXXGX  XXX XXX
+        XXX    PXP PXX
+        XXXXXXS   B XX
+        XXXXXXXPX  PXX
+        XXXXXXXXXXXXXX
     """
 
-    # Simulate request data
-    request_data = {
+    # Simulate the FIRST action (skill allocation)
+    first_request_data = {
         "map": game_map,
-        "free-skill-points": 0,
+        "free-skill-points": 6,  # Assume 6 points are available for allocation
         "history": []
     }
+    skill_allocation = agent_function(first_request_data, None)
+    print("Skill Allocation:", skill_allocation)
 
-    # Call the agent function with the simulated data
-    agent_function(request_data, None)
+    # Simulate subsequent actions with allocated skills
+    second_request_data = {
+        "map": game_map,
+        "free-skill-points": 0,  # Skills already allocated
+        "history": [{"action": skill_allocation, "outcome": {"agility": 6, "fighting": 0}}],
+        "skill-points": {"agility": 6, "fighting": 0}  # Allocated skills
+    }
+    action = agent_function(second_request_data, None)
+    print("Chosen Action:", action)
 
 if __name__ == '__main__':
     main()
