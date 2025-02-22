@@ -204,6 +204,7 @@ def a_star_search(grid, start, goal, agility_skill):
     came_from = {}
     g_score = {start: 0}
     f_score = {start: heuristic(start, goal)}
+    crossed_bridges = set()
 
     while open_set:
         _, current = heapq.heappop(open_set)
@@ -220,8 +221,12 @@ def a_star_search(grid, start, goal, agility_skill):
             for next_position in get_possible_next_positions(current, action, grid):
                 if not is_position_walkable(next_position, grid):
                     continue
-                if grid[next_position[1]][next_position[0]] == 'B' and not cross_bridge(agility_skill, next_position):
-                    continue  # Skip this position if it's a bridge and the agent can't cross it
+                if grid[next_position[1]][next_position[0]] == 'B':
+                    if next_position not in crossed_bridges:
+                        if cross_bridge(agility_skill, next_position):
+                            crossed_bridges.add(next_position)
+                        else:
+                            continue  # Skip this position if it's a bridge and the agent can't cross it
                 tentative_g_score = g_score[current] + 1  # Assume cost of 1 for each move
                 if next_position not in g_score or tentative_g_score < g_score[next_position]:
                     came_from[next_position] = current
