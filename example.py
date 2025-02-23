@@ -41,28 +41,20 @@ def get_walkable_positions(grid):
 """Check if a position is within bounds and not a wall."""
 def is_position_walkable(position, grid):
     col, row = position
-    if 0 <= row < len(grid) and 0 <= col < len(grid[0]) and grid[row][col] not in ('X', 'P'):
+    if 0 <= row < len(grid) and 0 <= col < len(grid[0]) and grid[row][col] != 'X' and grid[row][col] != 'P':
         return True
     return False
 
 """Compute the reward for a given transition."""
 def get_reward(position, action, next_position, gold_collected, gold_locations, start_pos, wumpus_locations, defeated_wumpus_locations, grid, skill_points):
-    reward = -0.1  # Base penalty per step
+    """
+    Calculate rewards without penalties for pits.
+    """
+    reward = -0.1  # Base step penalty
 
-    # Get cell type at next position
-    next_cell = grid[next_position[1]][next_position[0]]
-
-    # Penalize for invalid moves (blocked or into a pit)
+    # Penalize for invalid moves (blocked by wall/pit)
     if next_position == position:
         reward -= 0.5
-
-    # Strong penalty for pits (if the agent somehow reaches it)
-    if next_cell == 'P':
-        reward -= 1000  # Fatal penalty for pits
-    
-    if is_adjacent_to_pit(next_position, grid):
-        reward -= 5  # Small penalty for risky paths
-
 
     if next_position in gold_locations and next_position not in gold_collected:
         reward += 10
@@ -80,15 +72,19 @@ def get_reward(position, action, next_position, gold_collected, gold_locations, 
     return reward
 
 
+
 def get_possible_next_positions(position, action, grid):
+    """
+    Determine valid next positions based on the action, avoiding pits and walls.
+    """
     if action == "EXIT":
         if grid[position[1]][position[0]] == 'S':
             return {position}
         else:
-            return set()  # EXIT is invalid if not at the stairs
+            return set()
 
     if action == "FIGHT":
-        return {position}  # Agent stays in place while fighting
+        return {position}
 
     directions = {
         "NORTH": (0, -1),
@@ -96,14 +92,17 @@ def get_possible_next_positions(position, action, grid):
         "EAST": (1, 0),
         "WEST": (-1, 0)
     }
+
     dc, dr = directions[action]
     new_col = position[0] + dc
     new_row = position[1] + dr
     new_pos = (new_col, new_row)
-    if is_position_walkable(new_pos, grid) and grid[new_row][new_col] != 'P':
+
+    # Only return walkable positions (pits are treated as walls)
+    if is_position_walkable(new_pos, grid):
         return {new_pos}
     else:
-        return {position}  # Stay in current position if movement is blocked or leads to a pit
+        return {position}
 
 def get_transition_prob(position, action, next_position, grid):
     if action == "EXIT":
@@ -219,8 +218,7 @@ def print_grid(grid, agent_position):
 
 def get_safe_next_position(current_position, action, grid, skill_points):
     """
-    Determines if the next position is safe to move to, especially for bridges and pits.
-    Repeats dice rolls until success for bridge crossings.
+    Determines if the next position is safe. Treats pits as walls.
     """
     directions = {
         "NORTH": (0, -1),
@@ -228,31 +226,30 @@ def get_safe_next_position(current_position, action, grid, skill_points):
         "EAST": (1, 0),
         "WEST": (-1, 0)
     }
-    
+
     if action not in directions:
         return current_position
-        
+
     dc, dr = directions[action]
     new_col = current_position[0] + dc
     new_row = current_position[1] + dr
-    
+
     if not (0 <= new_row < len(grid) and 0 <= new_col < len(grid[0])):
         return current_position
-        
+
     next_cell = grid[new_row][new_col]
-    
-    # 🟡 Handle Bridge Crossing
+
+    # Handle bridges with agility checks
     if next_cell == 'B':
         agility_skill = skill_points.get("agility", 0)
         if agility_skill <= 0:
             print("Agility skill too low. Cannot attempt crossing.")
             return None
 
-        while True:  # 🔁 Loop until success
-            # Roll dice equal to agility skill
+        while True:
             dice_rolls = [random.randint(1, 6) for _ in range(agility_skill)]
-            dice_rolls.sort(reverse=True)  # Sort to pick top 3
-            top_dice = dice_rolls[:3]  # Pick top 3 or all if fewer
+            dice_rolls.sort(reverse=True)
+            top_dice = dice_rolls[:3]
             score = sum(top_dice)
 
             print(f"Rolling Dice: {dice_rolls}, Top 3 = {top_dice}, Score = {score}")
@@ -263,16 +260,11 @@ def get_safe_next_position(current_position, action, grid, skill_points):
             else:
                 print("❌ Failed roll. Retrying...")
 
-    # 🟢 For non-bridge cells
-    if next_cell == 'P':
-        print("❌ Pit detected! Cannot move here.")
-        return current_position  # Don't allow movement into pit
+    # Pits and walls are not walkable
+    if next_cell in ('X', 'P'):
+        return current_position
 
-    if next_cell != 'X':  # Check if it's not a wall
-        return (new_col, new_row)
-    
-    return current_position  # Stay in place if it's a wall or unsafe cell
-
+    return (new_col, new_row)
 
 
 def agent_function(request_data, request_info):
