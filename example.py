@@ -192,24 +192,35 @@ def policy_iteration(grid, gold_locations, start_pos, wumpus_locations, defeated
 
     return policy
 
-"""
-Attempt to cross the bridge multiple times until success or max attempts reached.
-Returns True if crossing succeeds, False otherwise.
-"""
-def attempt_bridge_crossing(agility_skill, max_attempts=100):
-    for _ in range(max_attempts):
-        dice_rolls = [random.randint(1, 6) for _ in range(agility_skill)]
-        dice_rolls.sort(reverse=True)
-        score = sum(dice_rolls[:3])
-        if score >= 12:
-            return True
+def is_adjacent_to_pit(position, grid):
+    col, row = position
+    directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+    for dc, dr in directions:
+        adj_col, adj_row = col + dc, row + dr
+        if 0 <= adj_row < len(grid) and 0 <= adj_col < len(grid[0]):
+            if grid[adj_row][adj_col] == 'P':
+                return True
     return False
 
-"""
-Determines if the next position is safe to move to, considering bridge crossing ability.
-Returns the next position if safe, None if unsafe.
-"""
+def fight_wumpus(fighting_skill):
+    dice_rolls = [random.randint(1, 6) for _ in range(fighting_skill)]
+    dice_rolls.sort(reverse=True)
+    score = sum(dice_rolls[:3])
+    return score >= 13
+
+def print_grid(grid, agent_position):
+    grid_copy = [row[:] for row in grid]
+    col, row = agent_position
+    grid_copy[row][col] = 'A'  # Mark the agent's position with 'A'
+    for row in grid_copy:
+        print(''.join(row))
+    print()
+
 def get_safe_next_position(current_position, action, grid, skill_points):
+    """
+    Determines if the next position is safe to move to, especially for bridges.
+    Repeats dice rolls until success for bridge crossings.
+    """
     directions = {
         "NORTH": (0, -1),
         "SOUTH": (0, 1),
@@ -229,47 +240,34 @@ def get_safe_next_position(current_position, action, grid, skill_points):
         
     next_cell = grid[new_row][new_col]
     
+    # 🟡 Handle Bridge Crossing
     if next_cell == 'B':
         agility_skill = skill_points.get("agility", 0)
-        # Use attempt_bridge_crossing with controlled attempts
-        if attempt_bridge_crossing(agility_skill, max_attempts=agility_skill * 5):
-            print("Agent safely crosses the bridge.")
-            return (new_col, new_row)
-        else:
-            print("Bridge crossing failed. Avoiding this path.")
+        if agility_skill <= 0:
+            print("Agility skill too low. Cannot attempt crossing.")
             return None
-    
+
+        while True:  # 🔁 Loop until success
+            # Roll dice equal to agility skill
+            dice_rolls = [random.randint(1, 6) for _ in range(agility_skill)]
+            dice_rolls.sort(reverse=True)  # Sort to pick top 3
+            top_dice = dice_rolls[:3]  # Pick top 3 or all if fewer
+            score = sum(top_dice)
+
+            print(f"Rolling Dice: {dice_rolls}, Top 3 = {top_dice}, Score = {score}")
+
+            if score >= 12:
+                print("✅ Bridge crossing successful!")
+                return (new_col, new_row)
+            else:
+                print("❌ Failed roll. Retrying...")
+
+    # 🟢 For non-bridge cells
     if next_cell != 'X':
         return (new_col, new_row)
     
     return current_position
 
-def is_adjacent_to_pit(position, grid):
-    col, row = position
-    directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-    for dc, dr in directions:
-        adj_col, adj_row = col + dc, row + dr
-        if 0 <= adj_row < len(grid) and 0 <= adj_col < len(grid[0]):
-            if grid[adj_row][adj_col] == 'P':
-                return True
-    return False
-
-def fight_wumpus(fighting_skill):
-    dice_rolls = [random.randint(1, 6) for _ in range(fighting_skill)]
-    dice_rolls.sort(reverse=True)
-    score = sum(dice_rolls[:3])
-    # print(f"Dice Rolls: {dice_rolls}, Score: {score}")
-    # if score >= 13:
-        # print("Agent successfully defeats the Wumpus.")
-    return score >= 13
-
-def print_grid(grid, agent_position):
-    grid_copy = [row[:] for row in grid]
-    col, row = agent_position
-    grid_copy[row][col] = 'A'  # Mark the agent's position with 'A'
-    for row in grid_copy:
-        print(''.join(row))
-    print()
 
 def agent_function(request_data, request_info):
     print('_________________________________________________________')
