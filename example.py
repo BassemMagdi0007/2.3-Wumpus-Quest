@@ -46,30 +46,39 @@ def is_position_walkable(position, grid):
     return False
 
 """Compute the reward for a given transition."""
-def get_reward(position, action, next_position, gold_collected, gold_locations, start_pos, wumpus_locations, defeated_wumpus_locations, grid):
-    reward = -0.1  # Increased penalty per step to encourage shorter paths
+def get_reward(position, action, next_position, gold_collected, gold_locations, start_pos, wumpus_locations, defeated_wumpus_locations, grid, skill_points):
+    reward = -0.1  # Base penalty per step
 
-    # Penalty for hitting a wall or falling into a pit
-    if next_position == position or grid[next_position[1]][next_position[0]] == 'P':
-        reward -= 0.5  # Increased penalty for hitting a wall or falling into a pit
+    # Get cell type at next position
+    next_cell = grid[next_position[1]][next_position[0]]
 
-    # Reward for collecting gold
+    # Penalize for invalid moves (blocked or into a pit)
+    if next_position == position:
+        reward -= 0.5
+
+    # Strong penalty for pits (if the agent somehow reaches it)
+    if next_cell == 'P':
+        reward -= 1000  # Fatal penalty for pits
+    
+    if is_adjacent_to_pit(next_position, grid):
+        reward -= 5  # Small penalty for risky paths
+
+
     if next_position in gold_locations and next_position not in gold_collected:
-        reward += 10  # Increased reward for collecting gold
+        reward += 10
 
-    # Reward for exiting the cave
     if action == "EXIT" and next_position == start_pos:
         total_gold = len(gold_collected)
-        exit_reward = total_gold * 10  # Base reward per gold
+        exit_reward = total_gold * 10
         if total_gold == len(gold_locations):
-            exit_reward += 100  # Large bonus for collecting all gold
+            exit_reward += 100
         reward += exit_reward
 
-    # Penalty for encountering a Wumpus (only if it hasn't been defeated)
     if next_position in wumpus_locations and next_position not in defeated_wumpus_locations:
-        reward -= 50  # Large penalty for encountering a Wumpus
+        reward -= 50
 
     return reward
+
 
 def get_possible_next_positions(position, action, grid):
     if action == "EXIT":
@@ -119,7 +128,7 @@ def get_transition_prob(position, action, next_position, grid):
     actual_next_pos = new_pos if is_position_walkable(new_pos, grid) else position
     return 1.0 if next_position == actual_next_pos else 0.0
 
-def policy_iteration(grid, gold_locations, start_pos, wumpus_locations, defeated_wumpus_locations):
+def policy_iteration(grid, gold_locations, start_pos, wumpus_locations, defeated_wumpus_locations, skill_points):
     walkable_positions = get_walkable_positions(grid)
     states = [(pos, frozenset(gold_collected)) for pos in walkable_positions for gold_collected in powerset(gold_locations)]
     
@@ -140,7 +149,7 @@ def policy_iteration(grid, gold_locations, start_pos, wumpus_locations, defeated
                     next_gold_collected = set(gold_collected)
                     if next_position in gold_locations and next_position not in gold_collected:
                         next_gold_collected.add(next_position)
-                    reward = get_reward(position, action, next_position, gold_collected, gold_locations, start_pos, wumpus_locations, defeated_wumpus_locations, grid)
+                    reward = get_reward(position, action, next_position, gold_collected, gold_locations, start_pos, wumpus_locations, defeated_wumpus_locations, grid, skill_points)
                     prob = get_transition_prob(position, action, next_position, grid)
                     next_state = (next_position, frozenset(next_gold_collected))
                     total += prob * (reward + GAMMA * V[next_state])
@@ -159,15 +168,22 @@ def policy_iteration(grid, gold_locations, start_pos, wumpus_locations, defeated
             for action in ACTIONS:
                 total = 0
                 for next_position in get_possible_next_positions(position, action, grid):
+                    # Skip actions that lead directly into pits
+                    if grid[next_position[1]][next_position[0]] == 'P':
+                        continue
+
                     next_gold_collected = set(gold_collected)
                     if next_position in gold_locations and next_position not in gold_collected:
                         next_gold_collected.add(next_position)
-                    reward = get_reward(position, action, next_position, gold_collected, gold_locations, start_pos, wumpus_locations, defeated_wumpus_locations, grid)
+
+                    reward = get_reward(position, action, next_position, gold_collected, gold_locations, start_pos, wumpus_locations, defeated_wumpus_locations, grid, skill_points)
                     total += get_transition_prob(position, action, next_position, grid) * (reward + GAMMA * V[(next_position, frozenset(next_gold_collected))])
+
                 if total > best_value:
                     best_value = total
                     best_action = action
-            policy[state] = best_action
+
+                policy[state] = best_action
             if old_action != best_action:
                 policy_stable = False
 
@@ -176,11 +192,11 @@ def policy_iteration(grid, gold_locations, start_pos, wumpus_locations, defeated
 
     return policy
 
+"""
+Attempt to cross the bridge multiple times until success or max attempts reached.
+Returns True if crossing succeeds, False otherwise.
+"""
 def attempt_bridge_crossing(agility_skill, max_attempts=100):
-    """
-    Attempt to cross the bridge multiple times until success or max attempts reached.
-    Returns True if crossing succeeds, False otherwise.
-    """
     for _ in range(max_attempts):
         dice_rolls = [random.randint(1, 6) for _ in range(agility_skill)]
         dice_rolls.sort(reverse=True)
@@ -189,11 +205,11 @@ def attempt_bridge_crossing(agility_skill, max_attempts=100):
             return True
     return False
 
+"""
+Determines if the next position is safe to move to, considering bridge crossing ability.
+Returns the next position if safe, None if unsafe.
+"""
 def get_safe_next_position(current_position, action, grid, skill_points):
-    """
-    Determines if the next position is safe to move to, considering bridge crossing ability.
-    Returns the next position if safe, None if unsafe.
-    """
     directions = {
         "NORTH": (0, -1),
         "SOUTH": (0, 1),
@@ -208,41 +224,43 @@ def get_safe_next_position(current_position, action, grid, skill_points):
     new_col = current_position[0] + dc
     new_row = current_position[1] + dr
     
-    # Check if the new position is within bounds
     if not (0 <= new_row < len(grid) and 0 <= new_col < len(grid[0])):
         return current_position
         
     next_cell = grid[new_row][new_col]
     
-    # If next cell is a bridge, check if we can cross it safely
     if next_cell == 'B':
         agility_skill = skill_points.get("agility", 0)
-        if attempt_bridge_crossing(agility_skill):
+        # Use attempt_bridge_crossing with controlled attempts
+        if attempt_bridge_crossing(agility_skill, max_attempts=agility_skill * 5):
+            print("Agent safely crosses the bridge.")
             return (new_col, new_row)
-        return None  # Bridge crossing would be unsafe
-        
-    # For non-bridge cells, return the new position if it's not a wall
+        else:
+            print("Bridge crossing failed. Avoiding this path.")
+            return None
+    
     if next_cell != 'X':
         return (new_col, new_row)
     
     return current_position
 
-def cross_bridge(agility_skill):
-    dice_rolls = [random.randint(1, 6) for _ in range(agility_skill)]
-    dice_rolls.sort(reverse=True)
-    score = sum(dice_rolls[:3])
-    print(f"Dice Rolls: {dice_rolls}, Score: {score}")
-    if score >= 12:
-        print("Agent successfully crosses the bridge.")
-    return score >= 12
+def is_adjacent_to_pit(position, grid):
+    col, row = position
+    directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+    for dc, dr in directions:
+        adj_col, adj_row = col + dc, row + dr
+        if 0 <= adj_row < len(grid) and 0 <= adj_col < len(grid[0]):
+            if grid[adj_row][adj_col] == 'P':
+                return True
+    return False
 
 def fight_wumpus(fighting_skill):
     dice_rolls = [random.randint(1, 6) for _ in range(fighting_skill)]
     dice_rolls.sort(reverse=True)
     score = sum(dice_rolls[:3])
-    print(f"Dice Rolls: {dice_rolls}, Score: {score}")
-    if score >= 13:
-        print("Agent successfully defeats the Wumpus.")
+    # print(f"Dice Rolls: {dice_rolls}, Score: {score}")
+    # if score >= 13:
+        # print("Agent successfully defeats the Wumpus.")
     return score >= 13
 
 def print_grid(grid, agent_position):
@@ -291,28 +309,19 @@ def agent_function(request_data, request_info):
             grid[row][col] = '.'  # Critical fix: Replace 'W' with '.'
 
     # Print the amount of collected gold
-    print(f"COLLECTED GOLD: {len(gold_collected)}")
+    # print(f"COLLECTED GOLD: {len(gold_collected)}")
 
     # Debugging: Print current position and grid
-    print(f"Current Position: {current_position}")
-    print(f"Grid Layout:")
-    print_grid(grid, current_position)
+    # print(f"Current Position: {current_position}")
+    # print(f"Grid Layout:")
+    # print_grid(grid, current_position)
 
     # Check if the agent is on the stairs and has collected gold
     if grid[current_position[1]][current_position[0]] == 'S' and gold_collected:
         return "EXIT"  # Return plain string for EXIT action
-
-    # Check if the agent is on a bridge and needs to cross it
-    if grid[current_position[1]][current_position[0]] == 'B':
-        agility_skill = request_data.get("skill-points", {}).get("agility", 0)
-        for attempt in range(agility_skill): 
-            if cross_bridge(agility_skill):
-                print("Agent successfully crosses the bridge.")
-                break
-            else:
-                print(f"Attempt {attempt + 1}: Agent failed to cross the bridge.")
-        else:
-            print("Agent failed to cross the bridge after 10 attempts and falls into the pit.")
+    
+    if grid[current_position[1]][current_position[0]] == 'P':
+        print("Agent fell into a pit and died.")
 
     # Check if the agent is on a Wumpus and needs to fight it
     if grid[current_position[1]][current_position[0]] == 'W' and current_position not in defeated_wumpus_locations:
@@ -326,7 +335,7 @@ def agent_function(request_data, request_info):
             return "EXIT"  # Agent dies, so exit
 
     # Compute the optimal policy using Policy Iteration
-    policy = policy_iteration(grid, gold_locations, start_pos, wumpus_locations, defeated_wumpus_locations)
+    policy = policy_iteration(grid, gold_locations, start_pos, wumpus_locations, defeated_wumpus_locations, skill_points)
     
     # Override EXIT action unless all gold is collected
     state = (current_position, frozenset(gold_collected))
