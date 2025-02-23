@@ -100,10 +100,10 @@ def get_possible_next_positions(position, action, grid):
     new_col = position[0] + dc
     new_row = position[1] + dr
     new_pos = (new_col, new_row)
-    if is_position_walkable(new_pos, grid):
+    if is_position_walkable(new_pos, grid) and grid[new_row][new_col] != 'P':
         return {new_pos}
     else:
-        return {position}  # Stay in current position if movement is blocked
+        return {position}  # Stay in current position if movement is blocked or leads to a pit
 
 def get_transition_prob(position, action, next_position, grid):
     if action == "EXIT":
