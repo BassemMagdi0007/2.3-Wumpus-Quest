@@ -192,6 +192,7 @@ def policy_iteration(grid, gold_locations, start_pos, wumpus_locations, defeated
 
     return policy
 
+
 def is_adjacent_to_pit(position, grid):
     col, row = position
     directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
@@ -218,7 +219,7 @@ def print_grid(grid, agent_position):
 
 def get_safe_next_position(current_position, action, grid, skill_points):
     """
-    Determines if the next position is safe to move to, especially for bridges.
+    Determines if the next position is safe to move to, especially for bridges and pits.
     Repeats dice rolls until success for bridge crossings.
     """
     directions = {
@@ -263,10 +264,15 @@ def get_safe_next_position(current_position, action, grid, skill_points):
                 print("❌ Failed roll. Retrying...")
 
     # 🟢 For non-bridge cells
-    if next_cell != 'X':
+    if next_cell == 'P':
+        print("❌ Pit detected! Cannot move here.")
+        return current_position  # Don't allow movement into pit
+
+    if next_cell != 'X':  # Check if it's not a wall
         return (new_col, new_row)
     
-    return current_position
+    return current_position  # Stay in place if it's a wall or unsafe cell
+
 
 
 def agent_function(request_data, request_info):
