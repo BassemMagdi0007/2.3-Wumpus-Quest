@@ -55,7 +55,7 @@ import logging
 from itertools import chain, combinations
 
 # Constants
-GAMMA = 0.95  # Discount factor
+GAMMA = 0.99  # Discount factor
 EPSILON = 1e-6  # Convergence threshold
 ACTIONS = ["NORTH", "SOUTH", "EAST", "WEST", "EXIT"]
 ```
