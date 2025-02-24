@@ -1,9 +1,8 @@
 # Assignment 2.3: Wumpus Quest
 
-This project implements an AI agent for Wumpus Quest, a Markov Decision Process (MDP)-based game where the agent navigates a cave, collects gold, and returns safely while avoiding hazards such as pits, Wumpuses, and bridges. The agent must learn an optimal policy for decision-making using policy iteration, a reinforcement learning technique.
+This project implements an AI agent for Wumpus Quest, a Markov Decision Process (MDP)-based game where the agent navigates a cave, collects gold, and returns safely while avoiding hazards such as pits and bridges. The agent uses policy iteration, a reinforcement learning technique, to learn an optimal decision-making policy.
 
-The agent operates in an uncertain environment where movements may not always succeed as intended, and some actions (such as fighting or crossing bridges) depend on skill-based probability rolls.
-
+The agent operates in an uncertain environment where movements may not always succeed as intended, and some actions (such as crossing bridges) depend on skill-based probability rolls.
 
 ## Table of Contents
 
@@ -21,11 +20,11 @@ The agent operates in an uncertain environment where movements may not always su
 
 ### Key Features 
 - **Markov Decision Process (MDP) Framework:** The agent models the game as an MDP and applies policy iteration to determine the best strategy.
-- **State Representation:** The state consists of the agent’s position and gold collected in the cave.
+- **State Representation:** The state consists of the agent’s position and gold collected in the cave `(position, frozenset(gold_collected))`.
 - **Reward System:** The agent receives rewards for collecting gold and penalties for movement costs and hitting walls.
 - **Skill Allocation:** The agent can allocate skill points for agility (crossing bridges) and fighting (defeating the Wumpus).
 - **Deterministic Transition Model:** The movement follows deterministic rules, but skill-dependent actions use probability-based success/failure.
-- **Grid-Based Navigation:** The cave map is represented as a 2D grid where different symbols (S, G, P, W, B, X) define terrain and obstacles.
+- **Grid-Based Navigation:** The cave map is represented as a 2D grid where different symbols (S, G, P, B, X) define terrain and obstacles.
 
 ## Setup
 ### This repository contains:
@@ -34,8 +33,8 @@ The agent operates in an uncertain environment where movements may not always su
  3) **agent-configs/**: Configuration files for different game scenarios.
 
 ### How to run the code: 
-1) **`example.py`**, **`client.py`** and **agent-configs/** folder must all be on the same folder
-2) Run the **cmd** on the current path.
+1) Ensure **`example.py`**, **`client.py`** and **agent-configs/** folder are in the same directory.
+2) Run the **cmd** in the directory
 3) Run the following command **python example.py agent-configs/env-*.json**
 
 ### Used libraries:
@@ -96,7 +95,7 @@ def parse_map(raw_map):
 get_walkable_positions(grid):
   #...
 ```
-- Returns a list of all walkable positions (non-wall cells) in the grid.
+- This function returns a list of all walkable positions in the grid. A position is walkable if it is not a wall (X). The positions are stored as (column, row) tuples..
 
 #### **`is_position_walkable(position, grid)`**
 ```python
@@ -111,10 +110,10 @@ get_reward(position, action, next_position, gold_collected, gold_locations, star
   #...
 ```
 - Bellman Equation Context: Computes immediate reward R(s,a,s') for value updates:
-  - Small penalty for each step (-0.01).
-  - Additional penalty for hitting a wall (-0.1).
-  - Reward for collecting gold (+1).
-  - Reward for exiting the cave with collected gold (+len(gold_collected)).
+  - Small penalty for each step (-0.1).
+  - Additional penalty for hitting a wall (-0.5).
+  - Reward for collecting gold (+10).
+  - Reward for exiting the cave with collected gold (+len(gold_collected)* 10).
 
 #### **`get_possible_next_positions(position, action, grid)`**
 ```python
@@ -139,21 +138,28 @@ get_transition_prob(position, action, next_position, grid):
 policy_iteration(grid, gold_locations, start_pos):
   #...
 ```
-  - Bellman Equation: Explicitly used in value updates during policy evaluation.
-  - Alternates between **Policy Evaluation** (updating the value function) and **Policy Improvement** (updating the policy).
-  - Stops when the policy stabilizes (no further changes).
-
+  - **Initialization:**
+    -  The policy is initialized randomly for each state.
+    -  The value function `V` is initialized to 0 for all states.
+  - **Policy Evaluation:**
+    - The value function is updated iteratively using the **Bellman equation** until convergence.
+  - **Policy Improvement:**
+    - The policy is updated to choose the action that maximizes the expected value.
+  - **Termination:**
+    - The process stops when the policy stabilizes (no further changes).
 ---
 
 ### **4. Bridge Handling**
 ```python
-def cross_bridge(agility_skill):
+def get_safe_next_position(current_position, action, grid, skill_points):
   #...
 ```
- - Rolls agility_skill dice, takes top 3.
- - Success if sum ≥ 12.
- - Called automatically when agent enters a bridge (B).
-
+This function determines the next position for a given action, considering skill-based obstacles like bridges:
+ - For movement actions, it checks if the new position is walkable.
+ - For bridges (B), it performs an agility check using dice rolls:
+    - The agent rolls dice equal to its agility skill and sums the top 3 rolls.
+    - If the sum is ≥ 12, the bridge is crossed successfully.
+    - If the sum is < 12, the agent retries the roll.
 ---
 
 ### **5. Agent Function**
