@@ -5,74 +5,78 @@ from itertools import chain, combinations
 # Constants
 GAMMA = 0.99  # Increased discount factor to prioritize future rewards
 EPSILON = 1e-6  # Convergence threshold
-ACTIONS = ["NORTH", "SOUTH", "EAST", "WEST", "EXIT", "FIGHT"]
+# ACTIONS = ["NORTH", "SOUTH", "EAST", "WEST", "EXIT", "FIGHT"]
+ACTIONS = ["NORTH", "SOUTH", "EAST", "WEST", "EXIT"]
 
 # Helper functions
-"""Generate all possible subsets of a given iterable."""
-def powerset(iterable):
-    s = list(iterable)
+#---------------------------------------------------------------------------------------
+"""Generate all possible subsets of a given iterable.""" #DONE
+def powerset(gold_locations):
+    s = list(gold_locations)
     return chain.from_iterable(combinations(s, r) for r in range(len(s) + 1))
-
-"""Parse the map into a 2D list and extract key locations."""
+#---------------------------------------------------------------------------------------
+"""Parse the map into a 2D list and extract key locations (S,G,W,P).""" #DONE
 def parse_map(raw_map):
     grid = [list(row) for row in raw_map.split('\n') if row.strip()]
-    gold_locations = []
     start_pos = None
+    # List of tubles 
+    gold_locations = []
     wumpus_locations = []
+    pits_locations = []
     for row_idx, line in enumerate(grid):
         for col_idx, cell in enumerate(line):
             if cell == 'G':
-                gold_locations.append((col_idx, row_idx))  # Store as (column, row)
+                gold_locations.append((col_idx, row_idx))
             elif cell == 'S':
-                start_pos = (col_idx, row_idx)  # Store as (column, row)
+                start_pos = (col_idx, row_idx)
             elif cell == 'W':
                 wumpus_locations.append((col_idx, row_idx))
-    return grid, gold_locations, start_pos, wumpus_locations
-
-"""Return a list of all coordinates (column, row) in the grid that are walkable."""
+            elif cell == 'P':
+                pits_locations.append((col_idx, row_idx))
+    
+    # Return elements positions
+    return grid, gold_locations, start_pos, wumpus_locations, pits_locations
+#---------------------------------------------------------------------------------------
+"""Return a list of all coordinates (column, row) in the grid that are walkable.""" #DONE
 def get_walkable_positions(grid):
     walkable_positions = []
     for row_idx in range(len(grid)):
         for col_idx in range(len(grid[0])):
-            if grid[row_idx][col_idx] != 'X':  # Walkable if not a wall
-                walkable_positions.append((col_idx, row_idx))  # Store as (column, row)
+            # Walkable if not a wall or pit
+            if grid[row_idx][col_idx] != 'X' and grid[row_idx][col_idx] != 'P':  
+                walkable_positions.append((col_idx, row_idx))
+    
+    # Return walkable positions
     return walkable_positions
-
-"""Check if a position is within bounds and not a wall."""
-def is_position_walkable(position, grid):
+#---------------------------------------------------------------------------------------
+"""Check if a position is within bounds and not a wall or pit.""" #DONE
+def is_next_position_walkable(position, grid, skill_points=None):
     col, row = position
-    if 0 <= row < len(grid) and 0 <= col < len(grid[0]) and grid[row][col] != 'X' and grid[row][col] != 'P':
-        return True
+    if 0 <= row < len(grid) and 0 <= col < len(grid[0]):
+        # Check if it's not a wall or pit
+        if grid[row][col] != 'X' and grid[row][col] != 'P':
+            
+            # Next position is walkable
+            return True
+    # Next position is not walkable
     return False
 
-"""Compute the reward for a given transition."""
-def get_reward(position, action, next_position, gold_collected, gold_locations, start_pos, wumpus_locations, defeated_wumpus_locations, grid, skill_points):
-    """
-    Calculate rewards without penalties for pits.
-    """
-    reward = -0.1  # Base step penalty
-
-    # Penalize for invalid moves (blocked by wall/pit)
-    if next_position == position:
-        reward -= 0.5
-
-    if next_position in gold_locations and next_position not in gold_collected:
-        reward += 10
-
-    if action == "EXIT" and next_position == start_pos:
-        total_gold = len(gold_collected)
-        exit_reward = total_gold * 10
-        if total_gold == len(gold_locations):
-            exit_reward += 100
-        reward += exit_reward
-
-    if next_position in wumpus_locations and next_position not in defeated_wumpus_locations:
-        reward -= 50
-
-    return reward
-
-
-
+#---------------------------------------------------------------------------------------
+"""Attempt to cross a bridge using agility dice rolls."""
+def attempt_bridge_crossing(current_position, agility_skill):
+    if agility_skill <= 0:
+        print("No agility points - cannot attempt bridge crossing")
+        return current_position
+        
+    dice_rolls = [random.randint(1, 6) for _ in range(agility_skill)]
+    dice_rolls.sort(reverse=True)
+    top_dice = dice_rolls[:3]
+    score = sum(top_dice)
+    
+    # print(f"Bridge crossing attempt - Rolls: {dice_rolls}, Top 3: {top_dice}, Score: {score}")
+    return score >= 12
+#---------------------------------------------------------------------------------------
+"""Determine next valid positions based on the action."""
 def get_possible_next_positions(position, action, grid):
     """
     Determine valid next positions based on the action, avoiding pits and walls.
@@ -99,11 +103,84 @@ def get_possible_next_positions(position, action, grid):
     new_pos = (new_col, new_row)
 
     # Only return walkable positions (pits are treated as walls)
-    if is_position_walkable(new_pos, grid):
+    if is_next_position_walkable(new_pos, grid):
         return {new_pos}
     else:
         return {position}
+#---------------------------------------------------------------------------------------
+def get_safe_next_position(current_position, action, grid, skill_points):
+    """
+    Determines if the next position is safe. Treats pits as walls.
+    """
+    directions = {
+        "NORTH": (0, -1),
+        "SOUTH": (0, 1),
+        "EAST": (1, 0),
+        "WEST": (-1, 0)
+    }
 
+    if action not in directions:
+        return current_position
+
+    dc, dr = directions[action]
+    new_col = current_position[0] + dc
+    new_row = current_position[1] + dr
+
+    if not (0 <= new_row < len(grid) and 0 <= new_col < len(grid[0])):
+        return current_position
+
+    next_cell = grid[new_row][new_col]
+
+    # Handle bridges with agility checks
+    if next_cell == 'B':
+        agility_skill = skill_points.get("agility", 0)
+        if agility_skill <= 0:
+            print("Agility skill too low. Cannot attempt crossing.")
+            return None
+
+        while True:
+            dice_rolls = [random.randint(1, 6) for _ in range(agility_skill)]
+            dice_rolls.sort(reverse=True)
+            top_dice = dice_rolls[:3]
+            score = sum(top_dice)
+
+            print(f"Rolling Dice: {dice_rolls}, Top 3 = {top_dice}, Score = {score}")
+
+            if score >= 12:
+                print("✅ Bridge crossing successful!")
+                return (new_col, new_row)
+            else:
+                print("❌ Failed roll. Retrying...")
+
+    # Pits and walls are not walkable
+    if next_cell in ('X', 'P'):
+        return current_position
+
+    return (new_col, new_row)
+#---------------------------------------------------------------------------------------
+"""Compute the reward for a given transition."""
+def get_reward(position, action, next_position, gold_collected, gold_locations, start_pos, wumpus_locations, defeated_wumpus_locations, grid, skill_points):
+    reward = -0.1  # Base step penalty
+
+    # Penalize for invalid moves (blocked by wall/pit)
+    if next_position == position:
+        reward -= 0.5
+
+    if next_position in gold_locations and next_position not in gold_collected:
+        reward += 10
+
+    if action == "EXIT" and next_position == start_pos:
+        total_gold = len(gold_collected)
+        exit_reward = total_gold * 10
+        if total_gold == len(gold_locations):
+            exit_reward += 100
+        reward += exit_reward
+
+    if next_position in wumpus_locations and next_position not in defeated_wumpus_locations:
+        reward -= 50
+
+    return reward
+#---------------------------------------------------------------------------------------
 def get_transition_prob(position, action, next_position, grid):
     if action == "EXIT":
         if grid[position[1]][position[0]] == 'S' and next_position == position:
@@ -124,9 +201,9 @@ def get_transition_prob(position, action, next_position, grid):
     new_col = position[0] + dc
     new_row = position[1] + dr
     new_pos = (new_col, new_row)
-    actual_next_pos = new_pos if is_position_walkable(new_pos, grid) else position
+    actual_next_pos = new_pos if is_next_position_walkable(new_pos, grid) else position
     return 1.0 if next_position == actual_next_pos else 0.0
-
+#---------------------------------------------------------------------------------------
 def policy_iteration(grid, gold_locations, start_pos, wumpus_locations, defeated_wumpus_locations, skill_points):
     walkable_positions = get_walkable_positions(grid)
     states = [(pos, frozenset(gold_collected)) for pos in walkable_positions for gold_collected in powerset(gold_locations)]
@@ -190,24 +267,13 @@ def policy_iteration(grid, gold_locations, start_pos, wumpus_locations, defeated
             break
 
     return policy
-
-
-def is_adjacent_to_pit(position, grid):
-    col, row = position
-    directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-    for dc, dr in directions:
-        adj_col, adj_row = col + dc, row + dr
-        if 0 <= adj_row < len(grid) and 0 <= adj_col < len(grid[0]):
-            if grid[adj_row][adj_col] == 'P':
-                return True
-    return False
-
+#---------------------------------------------------------------------------------------
 def fight_wumpus(fighting_skill):
     dice_rolls = [random.randint(1, 6) for _ in range(fighting_skill)]
     dice_rolls.sort(reverse=True)
     score = sum(dice_rolls[:3])
     return score >= 13
-
+#---------------------------------------------------------------------------------------
 def print_grid(grid, agent_position):
     grid_copy = [row[:] for row in grid]
     col, row = agent_position
@@ -215,64 +281,13 @@ def print_grid(grid, agent_position):
     for row in grid_copy:
         print(''.join(row))
     print()
-
-def get_safe_next_position(current_position, action, grid, skill_points):
-    """
-    Determines if the next position is safe. Treats pits as walls.
-    """
-    directions = {
-        "NORTH": (0, -1),
-        "SOUTH": (0, 1),
-        "EAST": (1, 0),
-        "WEST": (-1, 0)
-    }
-
-    if action not in directions:
-        return current_position
-
-    dc, dr = directions[action]
-    new_col = current_position[0] + dc
-    new_row = current_position[1] + dr
-
-    if not (0 <= new_row < len(grid) and 0 <= new_col < len(grid[0])):
-        return current_position
-
-    next_cell = grid[new_row][new_col]
-
-    # Handle bridges with agility checks
-    if next_cell == 'B':
-        agility_skill = skill_points.get("agility", 0)
-        if agility_skill <= 0:
-            print("Agility skill too low. Cannot attempt crossing.")
-            return None
-
-        while True:
-            dice_rolls = [random.randint(1, 6) for _ in range(agility_skill)]
-            dice_rolls.sort(reverse=True)
-            top_dice = dice_rolls[:3]
-            score = sum(top_dice)
-
-            print(f"Rolling Dice: {dice_rolls}, Top 3 = {top_dice}, Score = {score}")
-
-            if score >= 12:
-                print("✅ Bridge crossing successful!")
-                return (new_col, new_row)
-            else:
-                print("❌ Failed roll. Retrying...")
-
-    # Pits and walls are not walkable
-    if next_cell in ('X', 'P'):
-        return current_position
-
-    return (new_col, new_row)
-
-
+#---------------------------------------------------------------------------------------
 def agent_function(request_data, request_info):
     print('_________________________________________________________')
 
     # Parse game state
     game_map = request_data.get('map', '')
-    grid, gold_locations, start_pos, wumpus_locations = parse_map(game_map)
+    grid, gold_locations, start_pos, wumpus_locations, pits_locations = parse_map(game_map)
     free_skill_points = request_data.get("free-skill-points", 0)
     history = request_data.get("history", [])
     skill_points = request_data.get("skill-points", {})
