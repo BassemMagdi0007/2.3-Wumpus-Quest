@@ -1,4 +1,4 @@
-# Assignment 2.3: Wumpus Quest
+# Wumpus Quest
 
 This project implements an AI agent for Wumpus Quest, a Markov Decision Process (MDP)-based game where the agent navigates a cave, collects gold, and returns safely while avoiding hazards such as pits and bridges. The agent uses policy iteration, a reinforcement learning technique, to learn an optimal decision-making policy.
 
